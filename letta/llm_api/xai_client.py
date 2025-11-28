@@ -14,7 +14,17 @@ from letta.schemas.message import Message as PydanticMessage
 from letta.settings import model_settings
 
 
+def is_xai_reasoning_model(model: str) -> bool:
+    """Check if the xAI model is a reasoning model (extended thinking)."""
+    # xAI reasoning models have 'reasoning' in the model name
+    return "reasoning" in model.lower() and "non-reasoning" not in model.lower()
+
+
 class XAIClient(OpenAIClient):
+    def is_reasoning_model(self, llm_config: LLMConfig) -> bool:
+        """Override to detect xAI reasoning models."""
+        return is_xai_reasoning_model(llm_config.model)
+
     def requires_auto_tool_choice(self, llm_config: LLMConfig) -> bool:
         return False
 
@@ -40,6 +50,14 @@ class XAIClient(OpenAIClient):
         if "grok-3-mini-" in llm_config.model:
             data.pop("presence_penalty", None)
             data.pop("frequency_penalty", None)
+
+        # xAI reasoning models: ensure we don't send OpenAI-specific reasoning parameters
+        # xAI uses the model name suffix for reasoning mode, not API parameters
+        if is_xai_reasoning_model(llm_config.model):
+            data.pop("reasoning_effort", None)
+            data.pop("reasoning", None)
+            # xAI reasoning models might not support parallel tool calls
+            data.pop("parallel_tool_calls", None)
 
         return data
 
